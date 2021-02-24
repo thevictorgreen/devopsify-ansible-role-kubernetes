@@ -1,0 +1,136 @@
+---
+# tasks file for roles/kubernetes
+- name: Update System
+  become: yes
+  yum:
+    name: '*'
+    state: latest
+
+- name: Generate SSH Key Pair
+  become: yes
+  shell: |
+    ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa <<< y
+  args:
+    creates: ~/.ssh/id_rsa
+
+- name: List Installed Repos
+  become: yes
+  shell: |
+    yum repolist
+
+- name: Install Standard Packages
+  become: yes
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - vim
+      - git
+      - net-tools
+      - bind-utils
+      - tmux
+      - epel-release
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - jq
+
+- name: Add Docker Repository
+  become: yes
+  shell: |
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+- name: Update System
+  become: yes
+  yum:
+    name: '*'
+    state: latest
+
+- name: Install Docker Packages
+  become: yes
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - containerd.io-1.2.13
+      - docker-ce-19.03.11
+      - docker-ce-cli-19.03.11
+
+- name: Create /etc/docker and /etc/systemd/system/docker.service.d directories
+  become: yes
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - '/etc/docker'
+    - '/etc/systemd/system/docker.service.d'
+
+- name: Upload daemon.json to /etc/docker
+  become: yes
+  copy:
+    src: daemon.json
+    dest: /etc/docker/daemon.json
+
+- name: Restart Docker
+  become: yes
+  systemd:
+    name: docker
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+    masked: no
+
+- name: Reload sysctl
+  become: yes
+  shell: |
+    sysctl --system
+
+- name: Add Kubernetes Repos
+  become: yes
+  copy:
+    src: kubernetes.repo
+    dest: /etc/yum.repos.d/kubernetes.repo
+
+- name: List Installed Repos
+  become: yes
+  shell: |
+    yum repolist
+
+- name: Set Selinux to permissive mode P1
+  become: yes
+  shell: |
+    setenforce 0
+
+- name: Set Selinux to permissive mode p2
+  become: yes
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: 'SELINUX=permissive'
+
+- name: Install Kubernetes Packages
+  become: yes
+  yum:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - kubelet
+      - kubeadm
+      - kubectl
+
+- name: Enable Kubelet
+  become: yes
+  systemd:
+    name: kubelet
+    enabled: yes
+    masked: no
+
+- name: Pull kubernetes images
+  become: yes
+  shell: |
+    kubeadm config images pull
+
+- name: List kubernetes images
+  become: yes
+  shell: |
+    kubeadm config images list
