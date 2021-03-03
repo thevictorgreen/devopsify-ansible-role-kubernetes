@@ -134,3 +134,14 @@
   become: yes
   shell: |
     kubeadm config images list
+
+- name: Install izctl
+  become: yes
+  shell: |
+    yum localinstall -y /tmp/izctl-1-20.el7.x86_64.rpm
+
+- name: Install AWS CNI
+  become: yes
+  shell: |
+    docker load -i /tmp/aws-k8s-cni.tar
+    docker images
